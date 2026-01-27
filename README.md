@@ -52,7 +52,7 @@ DeepFakeFrontEnd/
 
    ```bash
    git clone <repo-url>
-   cd DeepFakeFrontEnd
+   cd frontend
    ```
 
 2. **Create a virtual environment**
@@ -230,3 +230,4 @@ detectors.py (if API contract changes)
 ```
 
 ---
+
