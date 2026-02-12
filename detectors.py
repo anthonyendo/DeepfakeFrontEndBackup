@@ -1,20 +1,25 @@
 """
 detectors.py
 
-This module contains all logic related to running the deepfake detector.
+This file contains the mock_predict function and the real_predict function.
 
-It provides a single entry point that the UI calls:
+This file basically serves as the "bridge" between:
+    - The user interface (what users see in the browser)
+    - The backend deepfake detection system (the AI model server)
+
+The UI (Home.py) calls one function in this file:
 
     run_analysis(uploader, modality, use_mock, api_url)
 
-Inside, it can either:
-  - use a MOCK predictor (for demos / when the real API is not ready), or
-  - call the REAL API endpoint defined by DEEFAKE_API_URL in Streamlit secrets.
+This file decides:
 
-Only these three functions would need changes probably:
-  - mock_predict: fake/demo behavior
-  - real_predict: how we call the backend API
-  - run_analysis: glue between Streamlit uploader and the model/API
+    If we are in MOCK mode:
+        then generate a fake/random result (for demo purposes)
+
+    If we are in REAL mode:
+        then send the uploaded file to a backend API
+        -> wait for a response
+        -> return the result to the UI
 """
 
 import time
@@ -25,10 +30,12 @@ from pathlib import Path
 import requests
 import streamlit as st
 
-
+# mock_predict() is not necessary to understand, it will be removed eventually
 def mock_predict(file_bytes: bytes, modality: str) -> dict:
     """
     Mock / demo predictor.
+    
+    NOT NECESSARY to know what this does at all, it's just temporary for demo purposes.
 
     This function does NOT call any real model. It just:
       - sleeps briefly to simulate processing time
@@ -43,7 +50,7 @@ def mock_predict(file_bytes: bytes, modality: str) -> dict:
     Returns:
         dict: {"label": "deepfake" | "real", "probability": float}
     """
-    # Simulate some runtime so the spinner feels "real".
+    # Simulate some runtime for the spinner
     time.sleep(0.8)
 
     # Build a seed from the beginning of the file + metadata
@@ -59,67 +66,95 @@ def mock_predict(file_bytes: bytes, modality: str) -> dict:
 
 def real_predict(tmp_path: str, modality: str, api_url: str) -> dict | None:
     """
-    Call the REAL deepfake detection API.
+    This function sends the uploaded file to the backend server.
 
-    This is where you plug in your backend.
+    This function is basically saying:
+        "Hey backend, here is a file. Please analyze it and see if it's a deepfake."
 
-    Expected behavior (recommended contract, can be adjusted to your backend):
-      - Send a POST request to `api_url`
-      - Include the uploaded file under the "file" field (multipart/form-data)
-      - Include `modality` as a form field
-      - Receive back JSON like:
-            {
-                "label": "deepfake" | "real",
-                "probability": 0.87
-            }
+    It works like this:
+        1. Open the saved file (the user input)
+        2. Send it to the backend using an HTTP POST request
+        3. Wait for a response
+        4. Return the result
+        
+    Basically in order to connect the API to this function you just need to create the secrets.toml
+    file (instructions in README), and paste the API url into that file.
+    
+    It's important to note that using the secrets.toml file to connect the back end via API will only work locally.
+    This is just for testing purposes to see if the API connection actually works.
+    Once we confirm it works there is an option in Streamlit to apply it globally to the website, so that anyone
+    who visits our website will be able have full functionality of the detector. But for now we're going to use
+    secrets.toml for testing purposes. 
 
-    Args:
-        tmp_path: Path to the temporary file saved on disk.
-        modality: "image", "video", or "audio".
-        api_url: Full endpoint URL, e.g. "https://your-backend/predict".
+    Parameters:
+        tmp_path:
+            The location of the file saved on disk (temporary file) (the user input).
+
+        modality:
+            "image", "video", or "audio"
+
+        api_url:
+            The full URL of the backend endpoint (not sure where we are hosting the model, could do AWS, Render,
+            Fly.io, etc.)
+            Example: https://my-backend.com/predict
+            Example: s3://my-bucket/deepfake-registry/v1
 
     Returns:
-        dict: Parsed JSON from the API if successful.
-        None: If there's a network error, bad status code, or invalid JSON.
-              In that case, a user-facing error message is shown in the UI.
+        - A dictionary if successful
+        - None if something failed
     """
-    # Optional: API key from Streamlit secrets (if your backend requires auth).
-    # In .streamlit/secrets.toml or Streamlit Cloud "Secrets" menu, you can set:
+    # ------------------------------------
+    # In .streamlit/secrets.toml you can set:
     #   DEEFAKE_API_KEY = "your-token-here"
+    # See line 101
     headers: dict[str, str] = {}
     try:
-        api_key = st.secrets.get("DEEFAKE_API_KEY")
+        api_key = st.secrets.get("DEEFAKE_API_KEY") # This is retrieving the API url from the secrets.toml file
         if api_key:
-            # Example: standard Bearer token auth; adjust if your backend differs.
+            # This just sends a Bearer token in headers just in case the backend requires authentication
             headers["Authorization"] = f"Bearer {api_key}"
     except Exception:
-        # If secrets are not configured with this key, just ignore.
+        # If secrets are not detected, then just ignore.
         pass
 
+    # ------------------------------------
+    # Sending HTTP request to backend
     try:
-        # Open the temporary file in binary mode and attach it as "file".
+        # Open the temporary file in binary mode(rb) and attach it as "file".
+        # Use binary mode because images, audio, video are binary, not text
         with open(tmp_path, "rb") as f:
+            # ------------------------------------
+            # Prepare file for upload
+            # Building a dictionary (key-value pair)
+            # The form field name = "file"
+            # The file content = f
             files = {"file": f}
-            # You can add more fields here if your backend expects them.
+            
+            # Also adding another form field called modality ("image", "audio", "video")
             data = {"modality": modality}
 
-            # IMPORTANT:
-            # - api_url is typically read from st.secrets["DEEFAKE_API_URL"]
-            #   and passed in from the UI.
-            # - timeout is set to 120 seconds; adjust if needed.
+            # send POST request to backend (POST is an HTTP request that "sends data")
             resp = requests.post(
-                api_url,
-                files=files,
-                data=data,
-                headers=headers,
-                timeout=120,
+                api_url, # URL of backend
+                files=files, # uploaded file (user input)
+                data=data, # the modality
+                headers=headers, # metadata about the POST request (in this case the authorization Bearer token) (may not be used)
+                timeout=120, # wait up to 2 minutes, if exceeds 2 mins, then the request fails
             )
-
-        # Raises requests.exceptions.HTTPError for 4xx or 5xx responses.
+            
+            # So the backend receives:
+            # - the file
+            # - the modality type
+            # This allows the backend to decide which processing pipeline to run
+            
+    # ------------------------------------
+        # Error response just in case
         resp.raise_for_status()
 
-        # Attempt to decode JSON from the response body.
+        # Converts backend response into python dictionary
         result = resp.json()
+        
+        # Makes sure that the response is really a dictionary
         if not isinstance(result, dict):
             # We expect a JSON OBJECT (dict), not a list / string / etc.
             raise ValueError("API did not return a JSON object")
@@ -160,51 +195,61 @@ def real_predict(tmp_path: str, modality: str, api_url: str) -> dict | None:
 
 def run_analysis(uploader, modality: str, use_mock: bool, api_url: str) -> dict | None:
     """
-    High-level helper called by the UI (Home.py).
+    This is the one function that Home.py calls.
 
-    This function is the ONLY thing the frontend calls to "run the model".
-    It is responsible for:
-      - validating that a file was uploaded
-      - saving the file to a temporary path on disk
-      - choosing between MOCK vs REAL prediction
-      - returning the model's result dict back to the UI
+    This function:
+        1. Checks that a file was uploaded
+        2. Saves the file temporarily
+        3. Decides whether to use mock or real API
+        4. Returns the result
 
-    Args:
-        uploader: The file-like object returned by st.file_uploader in the UI.
-        modality: "image", "video", or "audio" (chosen in the Settings section).
-        use_mock: True to use the random mock predictor; False to call real API.
-        api_url: URL of the real API endpoint to call when use_mock is False.
+    Parameters:
+        uploader:
+            The file uploaded via Streamlit file uploader.
+
+        modality:
+            "image", "video", or "audio"
+
+        use_mock:
+            True  -> Use mock_predict()
+            False -> Use real_predict()
+
+        api_url:
+            Backend URL (used only if use_mock is False)
 
     Returns:
-        dict: Result from mock_predict or real_predict, on success.
-        None: If no file is uploaded OR an error occurred (see real_predict).
+        Dictionary with result OR None
     """
-    # No file uploaded -> warn the user and stop.
+    # ------------------------------------
+    # If the user did not upload a file
     if not uploader:
         st.warning("Please upload a file first.", icon="⚠️")
         return None
 
-    # Show a spinner while we process / call the API.
+    # ------------------------------------
+    # Show a loading spinner while we process / call the API.
     with st.spinner("Analyzing… this may take a few seconds"):
-        # 1) Save the uploaded file to a temporary path.
+        # 1) Save the uploaded file to a temporary location
         suffix = Path(uploader.name).suffix  # keep original extension (.jpg, .mp4, etc.)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(uploader.getbuffer())
-            tmp_path = tmp.name  # local filesystem path to pass to backend
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp: # Create a temporary file on disk
+            tmp.write(uploader.getbuffer()) # Write uploaded file contents into it
+            tmp_path = tmp.name  # Save file path
 
         # 2) Choose which predictor to use based on `use_mock`.
         if use_mock:
-            # Mock mode: no network call, just random result.
+            # Fake random result
             result = mock_predict(uploader.getbuffer(), modality)
         else:
-            # Real mode: call your actual backend API.
+            # Call actual back end API
             result = real_predict(tmp_path, modality, api_url)
 
+    # ------------------------------------
     # If the real API failed, real_predict() returns None and an error message
     # will already have been shown to the user.
     if result is None:
         return None
 
+    # ------------------------------------
     # At this point, `result` should be a dict like:
     #   {"label": "deepfake" | "real", "probability": float}
     return result

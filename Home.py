@@ -1,6 +1,11 @@
 # Home.py
 # This is the main "Home" page for the app.
-# It builds the UI and calls into detectors.run_analysis() to get results.
+# When someone visits the website, this page will run.
+# This file is basically in charge of 
+# - building the page layout
+# - collects the user input (uploaded file)
+# - sends that input to 'detectors.py'
+# - displaying results
 
 import os
 
@@ -29,7 +34,7 @@ st.set_page_config(
     menu_items={"About": "AI Deepfake Detector"},
 )
 
-# Inject global CSS (fonts, colors, chips, etc.).
+# Add custom CSS styling
 inject_custom_css()
 
 
@@ -76,13 +81,12 @@ if "history" not in st.session_state:
 result = None
 
 
-# Run analysis when button is clicked
 
+# When user clicks "Analyze"
 if go:
     # This calls into detectors.run_analysis(), which:
     # - saves the upload to a temp file
-    # - uses mock_predict() OR real_predict() based on `use_mock`
-    # - returns a dict with "label" and "probability" or None on error
+    # - sends the uploaded file to mock_predict() or real_predict()
     result = run_analysis(uploader, modality, use_mock, api_url)
 
     # If we got a valid result and there was a file,

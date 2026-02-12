@@ -30,9 +30,9 @@ The backend API can be swapped in by updating **Streamlit secrets**.
 ```
 DeepFakeFrontEnd/
 │
-├── Home.py                # Main page (detector UI)
+├── Home.py                # Main page (controls app flow)
 ├── layout.py              # UI components (settings, preview, results, etc.)
-├── detectors.py           # Mock + real API calling logic
+├── detectors.py           # Mock + API calls
 ├── styles.py              # Global CSS styling
 │
 ├── pages/                 # Extra static pages (about, contact, etc.)
@@ -41,7 +41,7 @@ DeepFakeFrontEnd/
 │   └── 3_Contact.py
 │
 └── .streamlit/
-    └── secrets.toml       # API URL + API Key (ignored by Git)
+    └── secrets.toml       # Local secret config (NOT committed to Git)
 ```
 
 ---
@@ -75,6 +75,10 @@ DeepFakeFrontEnd/
    ```
    .streamlit/secrets.toml
    ```
+   Note: Just create a folder named ".streamlit" in the 'frontend' folder.
+   Then double-click the .streamlit folder, right click to create a new text document,
+   name it "secrets.toml" and make sure it's not "secrets.toml.txt".
+   Now you can open secrets.toml with Notes or VSCode to add the following.
 
    Add:
 
@@ -97,8 +101,7 @@ DeepFakeFrontEnd/
 The frontend sends uploaded files to the backend via the function:
 
 ```
-real_predict()  -> detectors.py
-```
+real_predict()  (found in detectors.py)
 
 When **Use mock API = OFF**, the app:
 
@@ -122,7 +125,7 @@ When **Use mock API = OFF**, the app:
    }
    ```
 
-If anything fails (network error, 500 error, bad JSON), the app shows a user-friendly error message.
+If anything fails (network error, 500 error, bad JSON), the app shows an error message.
 
 ---
 
@@ -132,27 +135,10 @@ Make sure `.streamlit/secrets.toml` exists locally(you'll have to create it):
 
 ```toml
 DEEFAKE_API_URL = "https://your-backend-url/predict"
-DEEFAKE_API_KEY = "optional-token"
+DEEFAKE_API_KEY = "optional-token" (only necessary if backend requires authentication)
 ```
 
 Git will **never** upload this file because it is in `.gitignore`.
-
----
-
-# Setting Secrets (Streamlit Cloud)
-
-When deploying:
-
-1. Go to your deployed app on Streamlit Cloud
-2. Click **Settings → Secrets**
-3. Paste the same values:
-
-```toml
-DEEFAKE_API_URL = "https://your-production-backend.com/predict"
-DEEFAKE_API_KEY = "prod-key-if-required"
-```
-
-These secrets are shared by the team on the Cloud deployment only.
 
 ---
 
@@ -213,21 +199,4 @@ On the **Home** page:
 # Summary
 
 This project uses Streamlit to create a clean, simple interface for detecting deepfakes from user-uploaded media. The app supports both a demo mode and real inference mode through a backend API.
-
-You can easily maintain and extend this app due to its modular structure:
-
-* **Home.py** -> page layout
-* **layout.py** -> UI components
-* **detectors.py** -> prediction logic
-* **styles.py** -> styling
-* **pages/** -> extra multipage content
-
-If anyone needs to plug in a real model, they only need to update:
-
-```
-.streamlit/secrets.toml
-detectors.py (if API contract changes)
-```
-
----
 
