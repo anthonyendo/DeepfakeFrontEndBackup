@@ -16,3 +16,6 @@ Thumbs.db
 
 # VS Code settings
 .vscode/
+
+# Ignore environment variables file
+.env

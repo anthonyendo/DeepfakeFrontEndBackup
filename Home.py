@@ -116,3 +116,7 @@ render_history()
 
 # Small note at the bottom of the page
 render_footer()
+
+# AI chatbot (bottom-right corner)
+from chatbot import render_chatbot
+render_chatbot()
