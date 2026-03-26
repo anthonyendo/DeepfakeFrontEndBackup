@@ -36,12 +36,11 @@ def render_settings():
     """
     st.markdown("### Settings")
 
-    # Two-column layout:
-    # Left: input type
-    # Right: API URL + mock toggle
     col1, col2 = st.columns([1, 2])
 
-    # Column 1: Input type selection
+    # -------------------------
+    # LEFT COLUMN (modality)
+    # -------------------------
     with col1:
         modality = st.selectbox(
             "Input type",
@@ -49,44 +48,38 @@ def render_settings():
             key="modality_select",
         )
 
-    # Column 2: API URL + mock toggle
+    # -------------------------
+    # RIGHT COLUMN (API + toggle)
+    # -------------------------
     with col2:
         default_url = _get_api_url()
 
-        # Keep a stable value for the toggle in session state
-        if "use_mock_state" not in st.session_state:
-            st.session_state.use_mock_state = True  # default is mock mode ON
+        # Initialize session state
+        if "use_mock_toggle" not in st.session_state:
+            st.session_state.use_mock_toggle = True
 
-        # API URL is disabled unless mock mode is OFF
-        if st.session_state.use_mock_state:
-            st.text_input(
-                "API URL",
-                value=default_url,
-                disabled=True,
-                key="api_url_disabled",
-            )
-        else:
-            st.text_input(
-                "API URL",
-                value=default_url,
-                key="api_url_input",
-            )
+        if "api_url_input" not in st.session_state:
+            st.session_state.api_url_input = default_url
 
-        # Toggle for switching mock mode ON/OFF
-        use_mock = st.toggle(
+        # Create placeholders for layout control
+        api_url_placeholder = st.empty()
+        toggle_placeholder = st.empty()
+
+        # Logic for toggle and API URL input
+        use_mock = toggle_placeholder.toggle(
             "Use mock API",
-            value=st.session_state.use_mock_state,
             key="use_mock_toggle",
         )
 
-        # Keep toggle state consistent across reruns
-        st.session_state.use_mock_state = use_mock
-
-        # If mock is ON -> always use default_url
-        # If mock is OFF -> use whatever user typed
-        api_url = default_url if use_mock else st.session_state.get("api_url_input", default_url)
+        # Render API URL input (disabled if using mock)
+        api_url = api_url_placeholder.text_input(
+            "API URL",
+            key="api_url_input",
+            disabled=use_mock,
+        )
 
     st.divider()
+
     return modality, use_mock, api_url
 
 # Title and subtitle at top of the page
